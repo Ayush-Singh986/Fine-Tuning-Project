@@ -29,7 +29,7 @@ training = [
   "trl>=0.15,<0.16",
 ]
 test = ["httpx>=0.27,<1"]
-download = ["huggingface_hub[hf_xet]>=0.27,<1", "pyarrow>=18,<30"]
+download = ["huggingface_hub[hf_xet]>=0.27,<1"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

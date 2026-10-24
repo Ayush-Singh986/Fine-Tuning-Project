@@ -5,104 +5,58 @@
 This project tests whether fine-tuning can make a small instruction model more
 reliable at turning a user request or unstructured context into one valid JSON
 object. When a JSON Schema is supplied, the API also validates the result
-against it. It uses supervised fine-tuning (SFT) with QLoRA, then Direct
-Preference Optimization (DPO) to teach task-specific preferences.
+against it. The main training path is supervised fine-tuning (SFT) with QLoRA.
+Optional DPO is supported when reviewed, JSON-task preference data is available.
 
 The goal is not to make the model generally smarter. It is to measure whether
 it performs this one task more consistently than the same base model with a
 carefully written prompt.
 
-**Status:** this repository includes a runnable training/evaluation/API
-scaffold, a pinned downloader for the six linked datasets, sample-format data,
-and tests. All six linked datasets are downloaded at pinned revisions: 93
-source files totaling 21,272,297,436 bytes (about 19.8 GiB), recorded in
-`data/external/manifest.json`. The small files under `data/*.example.jsonl`
-are format examples, not the training corpus. The full upstream files are
-stored under `data/external/`; they are deliberately not copied into the tiny
-example JSONL files or committed to Git. I have also created a filtered
-2,632-example JSON task corpus at `data/prepared/structured-json/`; its
-deterministic train/validation/test splits contain 2,106 / 263 / 263 examples.
-The Orca preference file has been converted into 12,857 usable pairs with
-train/validation/test splits of 10,296 / 1,288 / 1,273 for an exploratory DPO
-run.
-Neither corpus is human-reviewed for the JSON task. GPU training and
-before/after metrics have not been run; PyTorch is not installed in the active
-workspace environment.
+**Status:** the project includes a runnable training/evaluation/API scaffold,
+tests, and one pinned dataset downloader. It uses the JSON-relevant Nemotron
+Instruction-Following Chat dataset only. The prepared corpus contains 2,632
+machine-filtered JSON examples, split into 2,106 / 263 / 263 train, validation,
+and test examples. The small files under `data/*.example.jsonl` are format
+examples, not training data. Raw and prepared dataset files are git-ignored
+and are not committed. The examples still need human review; GPU training and
+before/after metrics have not been run.
 
-## Download the linked datasets
+## Download the dataset
 
-The downloader saves the original Parquet/JSONL/JSON/CSV files and each
-dataset's README under `data/external/`, plus a manifest with pinned Hub
-revisions, file names, and byte counts. Dataset files are git-ignored and
-should not be committed to the source repository.
+The project needs only [Nemotron Instruction-Following Chat v1](https://huggingface.co/datasets/nvidia/Nemotron-Instruction-Following-Chat-v1).
+The JSON preparation script uses its structured-output and chat JSONL files.
+The downloader saves these files, the dataset README, and a manifest with the
+pinned Hub revision under `data/external/`. Dataset files are git-ignored and
+should not be committed to Git.
 
 ```powershell
 python -m pip install -e ".[download]"
 python scripts/download_hf_datasets.py
 ```
 
-The `download` extra includes the Parquet reader used by the dataset inspection
-and preparation utilities, plus Xet support for more reliable transfers of
-large Hub files.
-
-The full download includes all available UltraChat splits, both GSM8K
-configurations and splits, both Nemotron files, the full Orca preference file,
-all 50 OpenCodeInstruct shards, and all three OpenCoder SFT configurations.
-It can require tens of gigabytes of disk space and a substantial download.
-The downloader resumes files using Hugging Face Hub's cache/local directory
-support. Select individual datasets with `--dataset gsm8k` or repeat the
-option, for example `--dataset gsm8k --dataset orca_dpo_pairs`. Check each
-source dataset's license and attribution requirements before redistribution or
-use in a released model.
-
-These sources do not all match the JSON task: UltraChat is general chat,
-GSM8K is math, Orca is generic preference data, and the last two are code
-corpora. I use only filtered, explicitly JSON-formatted Nemotron examples for
-the initial SFT corpus. Downloading the other datasets preserves the
-originals; it does **not** make them automatically appropriate for this task.
-
-### What each linked dataset contains
-
-| Dataset | Upstream data noted in its card | Best fit here | Important limitation |
-|---|---:|---|---|
-| [UltraChat 200k](https://huggingface.co/datasets/HuggingFaceH4/ultrachat_200k) | 207,865 `train_sft` and 23,110 `test_sft` examples; it also has generation splits | General chat SFT | Not a curated structured-JSON corpus |
-| [Nemotron Instruction-Following Chat v1](https://huggingface.co/datasets/nvidia/Nemotron-Instruction-Following-Chat-v1) | 426,009 chat and 4,969 structured-output examples | Structured-output experiments | The structured-output subset mixes JSON, XML, and YAML tasks |
-| [GSM8K](https://huggingface.co/datasets/openai/gsm8k) | 7,473 train and 1,319 test examples per config (`main` and `socratic`) | Math reasoning | Wrong task for structured JSON extraction |
-| [Argilla Orca DPO pairs](https://huggingface.co/datasets/argilla/distilabel-intel-orca-dpo-pairs) | One preference-pair training split | DPO experiments | General chat preferences do not teach schema-following JSON behavior |
-| [NVIDIA OpenCodeInstruct](https://huggingface.co/datasets/nvidia/OpenCodeInstruct) | 5,000,000 coding examples | Code SFT | Wrong task for this project |
-| [OpenCoder `opc-sft-stage1`](https://huggingface.co/datasets/OpenCoder-LLM/opc-sft-stage1) | Three instruction configurations | Code SFT | Wrong task for this project |
+The download is about 6.6 GiB. Hugging Face Hub resumes interrupted downloads.
+Review the dataset's license and attribution requirements before
+redistribution or use in a released model.
 
 The target for this project is **2,000–10,000 clean, task-relevant SFT
 examples**, not an arbitrary 2,000 rows copied from any source. The prepared
-corpus currently contains 2,632 machine-filtered examples: Nemotron
-structured-output examples whose instructions mention JSON and whose final
-answer parses as a JSON object, plus Nemotron chat turns where the final user
-asks for JSON and the assistant returns a JSON object. Math and code examples
-are not mixed into this JSON task. A human spot-check/review is still required
-before treating these candidates as fully verified labels. The source license
-and attribution requirements are preserved in the download manifest and must
-be followed.
-
-The supplied Orca DPO corpus is useful to exercise preference tuning, but its
-pairs cover general tasks and do not label JSON extraction quality. The
-preparation utility preserves those pairs as text and prevents identical
-prompts from crossing splits; it removed two pairs whose chosen and rejected
-responses were identical. Treat a run on it as an exploratory alignment
-experiment only; use human-reviewed JSON-task preferences before claiming
-task-specific DPO improvements.
+corpus contains Nemotron structured-output examples whose instructions
+mention JSON and chat turns where the final user asks for JSON and the
+assistant returns a JSON object. A human spot-check/review is still required
+before treating these candidates as verified labels.
 
 ### Why the example JSONL files have only a few rows
 
 `data/sft.example.jsonl` has three illustrative rows and
 `data/preferences.example.jsonl` has two preference pairs solely to show the
 expected local project format. They are intentionally tiny fixtures for
-smoke-testing loaders. They are **not** the linked datasets and are not the
+smoke-testing loaders. They are **not** the downloaded source data and are not the
 training corpus. The prepared 2,632-row candidate corpus is written by
 `scripts/prepare_json_sft.py` under `data/prepared/structured-json/`. The full
 upstream files live under `data/external/<dataset-name>/` in their original
-formats (including Parquet and JSONL). Keep these distinct:
+JSONL format. Keep these distinct:
 
-1. **Raw corpus:** the untouched source files downloaded from Hugging Face.
+1. **Raw corpus:** the Nemotron source files downloaded from Hugging Face.
 2. **Prepared corpus:** rows selected, converted, quality-checked, and split
    for one defined training task.
 3. **Example fixtures:** the tiny checked-in JSONL examples used by tests.
@@ -128,8 +82,8 @@ execution.
    I initially used invoice fields as a simple example, then changed the task
    to general JSON extraction after confirming that none of the provided
    corpora contains labeled invoices.
-3. **I set up reproducible source ingestion.** The downloader pins each Hub
-   revision and preserves source formats in a git-ignored directory.
+3. **I set up reproducible source ingestion.** The downloader pins the
+   Nemotron Hub revision and preserves its source files in a git-ignored directory.
    Large Hub transfers timed out over the initial HTTP route. I installed
    Hugging Face Xet support, increased the Hub timeout, and resumed from the
    local cache rather than discarding completed downloads.
@@ -146,9 +100,8 @@ execution.
    It split them by stable source ID into 2,106 train, 263 validation, and 263
    test examples. The report marks the corpus as not human-reviewed.
 6. **I avoided train/test leakage.** The split groups records by source ID,
-   and the task-specific preference splitter assigns a pair to the same split
-   as its source record. The Orca preparation utility groups identical prompts
-   before splitting. Baseline, SFT, and DPO evaluation use one frozen JSON test
+   and task-specific preference data can be assigned to the same split as its
+   source record. Baseline, SFT, and DPO evaluation use one frozen JSON test
    file; report comparison also checks the file hash and decoding settings.
 7. **I matched the model interface to the new task.** Training data keeps
    conversation messages and JSON targets. Inference can take a request and
@@ -165,17 +118,15 @@ execution.
    are no checkpoints, training curves, or measured before/after gains yet.
    PyTorch is not installed in this workspace, so I did not claim GPU
    availability or attempt model training. The 2,632 examples are
-   machine-filtered candidates, not fully human-audited labels. The Orca
-   converter prepares its generic preference pairs, but task-specific pairs
-   still need human review before making a JSON-alignment claim.
+   machine-filtered candidates, not fully human-audited labels. Task-specific
+   preference pairs still need human review before making a JSON-alignment claim.
 
 ### Remaining work before I can report project results
 
 1. Human-review the 2,632 machine-filtered JSON candidates, remove any
    semantically incorrect examples, and regenerate source-level splits.
-2. Review the converted Orca preference split for a clearly labeled
-   general-preference experiment, or create task-specific preference pairs
-   before claiming JSON-specific DPO results.
+2. Create and review JSON-task preference pairs before claiming
+   JSON-specific DPO results.
 3. Run the prompted base-model benchmark, QLoRA SFT, and DPO on a compatible
    GPU using identical test examples and decoding settings.
 4. Publish measured results, training curves, error slices, cost/runtime, and
@@ -218,9 +169,8 @@ not treat automatically generated preferences as ground truth.
 | **JSON Schema** | A machine-readable description of the permitted JSON structure, required fields, and value types. | The API can validate a generated object against a caller-provided schema instead of accepting merely parseable JSON. |
 | **Dataset / example** | A collection of training or evaluation records; one example is one record in that collection. | Examples teach or measure the selected task. Counts alone do not prove that labels are correct. |
 | **SFT example** | One supervised input and its expected assistant answer. In this project, the answer is a JSON object. | It teaches the model by showing desired outputs for prompts. |
-| **Preference pair** | One prompt paired with a `chosen` answer and a less-preferred `rejected` answer. | DPO uses comparisons to adjust which answer the model prefers. The downloaded Orca pairs are general preferences, not reviewed JSON-extraction labels. |
+| **Preference pair** | One prompt paired with a `chosen` answer and a less-preferred `rejected` answer. | DPO uses reviewed, task-relevant comparisons to adjust which answer the model prefers. |
 | **JSONL** | A text file with one complete JSON value per line. | It is convenient for streaming, reviewing, and loading training examples. The `.example.jsonl` files are tiny fixtures; prepared data is stored separately. |
-| **Parquet** | A compact, column-oriented file format commonly used for large datasets. | The Orca source is downloaded in Parquet and converted into JSONL for this project's trainer. |
 | **Raw dataset** | The downloaded upstream data, preserved in its original format. | Keeping raw files separate makes it possible to reproduce or change preparation without downloading again. |
 | **Prepared dataset** | Data converted, filtered, deduplicated, and split for the chosen task. | The trainer consumes prepared files, not every downloaded dataset indiscriminately. |
 | **Data filtering** | Keeping records that meet explicit rules, such as a JSON-related instruction and an answer that parses as a JSON object. | It removes obvious format mismatches, but it does not verify semantic correctness; the current SFT candidates still need human review. |
@@ -367,7 +317,7 @@ python -m pip install -e ".[test]"
 python -m unittest discover -s tests -v
 ```
 
-After the full Nemotron download finishes, build the filtered JSON candidate
+After the Nemotron download finishes, build the filtered JSON candidate
 corpus and inspect its report:
 
 ```bash
@@ -390,21 +340,7 @@ python scripts/train.py --stage sft \
   --output outputs/sft
 ```
 
-For an exploratory DPO run using the linked Orca data, first convert the
-downloaded Parquet file. This writes prepared pairs and deterministic
-train/validation/test splits under `data/prepared/orca-dpo/`:
-
-```bash
-python scripts/prepare_orca_dpo.py
-```
-
-The converter accepts non-empty prompts and chosen/rejected responses,
-deduplicates exact pairs, and keeps identical prompts in one split. Its report
-explicitly marks the data as not reviewed for the JSON task. These general
-preferences can pull the model away from strict JSON output, so compare JSON
-metrics and keep the DPO adapter only if it passes the release gate.
-
-For a task-specific DPO claim, instead create a reviewed
+For optional task-specific DPO, create a reviewed
 `data/preferences_reviewed.jsonl`. Each row must contain a `source_id` from the
 SFT corpus, the original `messages`, and different `chosen`/`rejected` JSON
 objects. A human must verify that `chosen` is better for the requested
@@ -425,18 +361,8 @@ python scripts/train.py --stage dpo \
 ```
 
 Validation loss is recorded in the Trainer state when validation files are
-provided. For the Orca experiment, use its own prepared training and validation files:
-
-```bash
-python scripts/train.py --stage dpo \
-  --sft-adapter outputs/sft/adapter \
-  --data data/prepared/orca-dpo/train.jsonl \
-  --validation-data data/prepared/orca-dpo/validation.jsonl \
-  --output outputs/dpo-orca
-```
-
-The `scripts/train.py --stage dpo` command accepts string responses as well as
-JSON-object responses. The training split is used for optimization and the
+provided. The `scripts/train.py --stage dpo` command accepts string responses
+as well as JSON-object responses. The training split is used for optimization and the
 validation split for training diagnostics; the JSON task test set remains
 untouched for final base/SFT/DPO comparison.
 
