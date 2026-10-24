@@ -1,0 +1,3 @@
+{"source_id":"fixture-001","messages":[{"role":"user","content":"From this note, return the contact name and appointment date as JSON. Note: Call Maya Patel to confirm the visit on 2025-06-10."}],"target":{"contact":"Maya Patel","appointment_date":"2025-06-10"}}
+{"source_id":"fixture-002","messages":[{"role":"user","content":"Extract the product and quantity as a JSON object: 'Blue notebooks, quantity 12'."}],"target":{"product":"Blue notebooks","quantity":12}}
+{"source_id":"fixture-003","messages":[{"role":"user","content":"Summarize these event details as JSON with title, date, and location: Demo day is on 2025-07-18 in Boston."}],"target":{"title":"Demo day","date":"2025-07-18","location":"Boston"}}

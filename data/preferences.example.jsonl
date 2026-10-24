@@ -1,0 +1,2 @@
+{"source_id":"fixture-pref-001","messages":[{"role":"user","content":"Extract name and count as JSON: Alex ordered 4 tickets."}],"chosen":{"name":"Alex","count":4},"rejected":{"name":"Alex","count":"four"}}
+{"source_id":"fixture-pref-002","messages":[{"role":"user","content":"Extract the city as JSON. The meeting is in Seattle."}],"chosen":{"city":"Seattle"},"rejected":{"city":"Portland"}}

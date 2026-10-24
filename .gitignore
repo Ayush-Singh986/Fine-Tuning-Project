@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+outputs/
+data/splits/
+data/external/
+data/prepared/
