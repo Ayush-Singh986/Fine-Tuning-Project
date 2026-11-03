@@ -490,6 +490,32 @@ Report measurements from the same frozen test set for all three checkpoints.
 Use exact decoding settings and include the number of examples and confidence
 intervals where practical.
 
+### Verified local run
+
+The prepared split in this working copy is sufficient for the project
+workflow; training and evaluation do not need the raw Nemotron files after
+preparation. The prepared JSONL files total about 29.6 MB, including a 3.1 MB
+held-out test file with 263 examples. These prepared files are git-ignored and
+are not included in a fresh clone. The upstream files used to create this split
+total about 7.1 GB, so do not download them again when the prepared split is
+already available locally.
+
+| Measure | Verified result |
+|---|---:|
+| Machine-filtered JSON candidates | 2,632 |
+| Training examples | 2,106 |
+| Validation examples | 263 |
+| Held-out test examples | 263 |
+| Duplicate examples removed | 141 |
+| Unit/API tests | 19/19 passed |
+
+The candidate labels have not been human-reviewed. These are data-pipeline and
+software-test results, **not** model-quality results. Base-model, SFT, and DPO
+metrics remain unmeasured. On the Windows 11 machine used for this check,
+PyTorch and the training/inference packages were not installed, `nvidia-smi`
+was unavailable, and only 8 GB of system memory was present. Run training and
+the model benchmark on a CUDA-capable host before reporting model gains.
+
 | Metric | Base prompted | After SFT | After DPO |
 |---|---:|---:|---:|
 | JSON parse success rate | Not measured | Not measured | Not measured |
